@@ -104,28 +104,33 @@ export async function POST(request) {
     const chatId = message.chat.id;
     const text = message.text.trim();
 
-    // Dùng Regex lấy slug sau cụm "/details " bất kể phía trước có gì
-    const detailsMatch = text.match(/\/details\s+([^\s]+)/);
-
-    if (detailsMatch) {
-      const slug = detailsMatch[1];
-      // PHẢI CÓ AWAIT Ở ĐÂY
-      await handleDetails(chatId, slug);
+    // 1. Lệnh /start
+    if (text === '/start') {
+      await sendMessage(chatId, '👋 Chào mừng bạn đến với <b>Flicknet Bot</b>!\n\nHãy nhập tên phim bạn muốn xem vào đây.');
       return NextResponse.json({ ok: true });
     }
 
-    if (text.startsWith('/start')) {
-      await sendMessage(chatId, '👋 Nhập tên phim để tìm kiếm!');
+    // 2. Lệnh /details (xử lý cả khi có bot username do switch_inline gây ra)
+    // Telegram sẽ gửi text kiểu: "/details pham-nhan-tu-tien" 
+    // hoặc "@FlicknetBot /details pham-nhan-tu-tien"
+    if (text.includes('/details')) {
+      const parts = text.split('/details ');
+      if (parts.length > 1) {
+        const slug = parts[1].trim();
+        await handleDetails(chatId, slug);
+      }
       return NextResponse.json({ ok: true });
     }
 
-    // Nếu không phải lệnh, thực hiện search
+    // 3. Nếu là văn bản thường -> Coi như là từ khóa tìm kiếm
     if (!text.startsWith('/')) {
       await handleSearch(chatId, text);
+      return NextResponse.json({ ok: true });
     }
 
   } catch (error) {
-    console.error('Final Webhook Error:', error.message);
+    console.error('Webhook error:', error?.response?.data ?? error.message);
+    // Chạy vào đây tương đương với nhánh Error Handler "Ignore" trong Make
   }
 
   return NextResponse.json({ ok: true });
