@@ -105,29 +105,32 @@ export async function POST(request) {
     const chatId = message.chat.id;
     const text = message.text.trim();
 
-    // Fix lỗi nhận diện: Ưu tiên check xem có chứa cụm "/details " không 
-    // (Bất kể nó nằm ở đầu hay sau @FlicknetBot)
-    if (text.includes('/details ')) {
-      const slug = text.split('/details ')[1]?.trim();
-      if (slug) {
-        await handleDetails(chatId, slug);
-        return NextResponse.json({ ok: true });
-      }
+    // 1. Dùng Regex để tìm cụm "/details <slug>"
+    // Cách này sẽ bắt được slug kể cả khi text là: "@FlicknetBot /details abc-xyz"
+    const detailsMatch = text.match(/\/details\s+([a-zA-Z0-9-]+)/);
+    
+    if (detailsMatch) {
+      const slug = detailsMatch[1]; // Lấy group 1 chính là cái slug
+      await handleDetails(chatId, slug);
+      return NextResponse.json({ ok: true });
     }
 
+    // 2. Lệnh /start
     if (text === '/start') {
       await sendMessage(chatId, '👋 Nhập tên phim để tìm kiếm nhé!');
       return NextResponse.json({ ok: true });
     }
 
-    // Nếu không phải lệnh đặc biệt và không chứa /details thì mới Search
+    // 3. Nếu không chứa lệnh /details và không bắt đầu bằng / thì mới là Search
+    // Loại bỏ trường hợp user gõ lệnh lạ bắt đầu bằng /
     if (!text.startsWith('/')) {
       await handleSearch(chatId, text);
       return NextResponse.json({ ok: true });
     }
 
   } catch (error) {
-    console.error('Webhook error:', error?.response?.data ?? error.message);
+    // Log lỗi chi tiết để debug trên Vercel
+    console.error('Webhook error:', error?.response?.data || error.message);
   }
   return NextResponse.json({ ok: true });
 }
