@@ -88,11 +88,29 @@ async function handleDetails(chatId, slug) {
   }));
 
   const telegraphUrl = await createTelegraphPage(movie.name, nodes);
-  const caption = `🎬 <b>${movie.name}</b> (${movie.year})\n✅ ${movie.episode_current}\n\n📋 Danh sách tập đã sẵn sàng!`;
+  const caption =
+    `🎬 <b>${movie.name}</b> (${movie.year})\n` +
+    `✅ ${movie.episode_current}\n\n` +
+    `📋 Danh sách tập đã sẵn sàng!`;
   const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
 
-  const photo = `${IMG_URL}/${movie.poster_url || movie.thumb_url}`;
-  return sendPhoto(chatId, photo, caption, buttons);
+  // ← Thử poster trước, fallback thumb, fallback sendMessage
+  const photoUrl = movie.poster_url
+    ? `${IMG_URL}/${movie.poster_url}`
+    : movie.thumb_url
+      ? `${IMG_URL}/${movie.thumb_url}`
+      : null;
+
+  if (photoUrl) {
+    try {
+      return await sendPhoto(chatId, photoUrl, caption, buttons);
+    } catch {
+      // ảnh lỗi → fallback text
+      return sendMessage(chatId, caption, buttons);
+    }
+  }
+
+  return sendMessage(chatId, caption, buttons);
 }
 
 export async function POST(request) {
