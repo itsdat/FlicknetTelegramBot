@@ -84,14 +84,15 @@ async function handleDetails(chatId, slug) {
   const serverData = episodes?.[0]?.server_data ?? [];
   const nodes = serverData.map((ep) => ({
     tag: 'p',
-    children: [{ tag: 'a', attrs: { href: ep.link_embed }, children: [`Tập ${ep.name}`] }],
+    children: [{ tag: 'a', attrs: { href: ep.link_embed }, children: [`${ep.name}`] }],
   }));
 
   const telegraphUrl = await createTelegraphPage(movie.name, nodes);
   const caption =
     `🎬 <b>${movie.name}</b> (${movie.year})\n` +
+    `🎬 ${movie.origin_name}\n` +
     `✅ ${movie.episode_current}\n\n`;
-  const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
+  const buttons = [[{ text: `${movie.type === "single" ? "▶️ Xem ngay" : "📋 Xem danh sách tập phim"}`, url: movie.type === "single" ? serverData[0].link_embed : telegraphUrl }]];
 
   // ← Thử poster trước, fallback thumb, fallback sendMessage
   const photoUrl = movie.poster_url
