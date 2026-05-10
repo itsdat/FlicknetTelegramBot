@@ -37,15 +37,16 @@ async function createTelegraphPage(title, nodes) {
     content: JSON.stringify(nodes),
     return_content: false,
   });
-
   if (!data.ok) throw new Error(`Telegraph error: ${data.error}`);
   return data.result.url;
 }
 
 // ─── Handlers ───────────────────────────────────────────────────
+
+// Sửa lại: Mỗi phim ra 1 tin nhắn riêng có ảnh và nút riêng
 async function handleSearch(chatId, keyword) {
   const { data } = await axios.get(
-    `${PHIM_API}/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&limit=10`
+    `${PHIM_API}/v1/api/tim-kiem?keyword=${encodeURIComponent(keyword)}&limit=5`
   );
   const items = data?.data?.items ?? [];
 
@@ -53,60 +54,45 @@ async function handleSearch(chatId, keyword) {
     return sendMessage(chatId, '❌ Không tìm thấy phim nào phù hợp.');
   }
 
-  const buttons = items.map((item) => [
-    {
-      text: `🎬 ${item.name} (${item.year})`,
-      // Tự động điền: @YourBot /details slug
-      switch_inline_query_current_chat: `/details ${item.slug}`,
-    },
-  ]);
+  // Vòng lặp gửi từng phim
+  for (const item of items) {
+    const buttons = [[
+      {
+        text: `🎬 Xem chi tiết: ${item.name}`,
+        switch_inline_query_current_chat: `/details ${item.slug}`,
+      },
+    ]];
+    
+    const caption = `<b>${item.name}</b> (${item.year})\nSlug: <code>${item.slug}</code>`;
+    const photo = `${IMG_URL}/${item.thumb_url}`;
 
-  const firstItem = items[0];
-  const caption = `🔍 <b>Kết quả tìm kiếm cho:</b> "${keyword}"\n\n<i>Nhấn vào nút phim bên dưới để lấy link xem chi tiết:</i>`;
-
-  // Nếu phim đầu tiên có ảnh thì gửi kèm ảnh cho đẹp, không thì gửi text
-  if (firstItem.thumb_url) {
-    return sendPhoto(chatId, `${IMG_URL}/${firstItem.thumb_url}`, caption, buttons);
+    try {
+      await sendPhoto(chatId, photo, caption, buttons);
+    } catch (e) {
+      // Backup nếu phim không có ảnh hoặc link ảnh lỗi
+      await sendMessage(chatId, caption, buttons);
+    }
   }
-  return sendMessage(chatId, caption, buttons);
 }
 
 async function handleDetails(chatId, slug) {
   const { data } = await axios.get(`${PHIM_API}/phim/${slug}`);
   const { movie, episodes } = data;
 
-  if (!movie) {
-    return sendMessage(chatId, '❌ Không tìm thấy thông tin phim này.');
-  }
+  if (!movie) return sendMessage(chatId, '❌ Không tìm thấy thông tin phim.');
 
   const serverData = episodes?.[0]?.server_data ?? [];
-  
-  // Tạo Nodes cho Telegraph (chuẩn Node Object)
   const nodes = serverData.map((ep) => ({
     tag: 'p',
-    children: [
-      {
-        tag: 'a',
-        attrs: { href: ep.link_embed },
-        children: [`Tập ${ep.name}`],
-      },
-    ],
+    children: [{ tag: 'a', attrs: { href: ep.link_embed }, children: [`Tập ${ep.name}`] }],
   }));
 
   const telegraphUrl = await createTelegraphPage(movie.name, nodes);
-
-  const caption =
-    `🎬 <b>${movie.name}</b> (${movie.year})\n` +
-    `✅ Trạng thái: ${movie.episode_current}\n` +
-    `⭐ Đánh giá: ${movie.tmdb?.vote_average ?? 'N/A'}/10\n\n` +
-    `<i>Nội dung: ${movie.content ? movie.content.replace(/<[^>]*>?/gm, '').substring(0, 150) + '...' : 'Đang cập nhật...'}</i>`;
-
+  const caption = `🎬 <b>${movie.name}</b> (${movie.year})\n✅ ${movie.episode_current}\n\n📋 Danh sách tập đã sẵn sàng!`;
   const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
 
-  if (movie.poster_url) {
-    return sendPhoto(chatId, `${IMG_URL}/${movie.poster_url}`, caption, buttons);
-  }
-  return sendMessage(chatId, caption, buttons);
+  const photo = `${IMG_URL}/${movie.poster_url || movie.thumb_url}`;
+  return sendPhoto(chatId, photo, caption, buttons);
 }
 
 // ─── Main Webhook Route ──────────────────────────────────────────
@@ -114,31 +100,27 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const message = body.message;
-
     if (!message?.text) return NextResponse.json({ ok: true });
 
     const chatId = message.chat.id;
     const text = message.text.trim();
 
-    // 1. Lệnh /start
-    if (text === '/start') {
-      await sendMessage(chatId, '👋 Chào mừng bạn đến với <b>Flicknet Bot</b>!\n\nHãy nhập tên phim bạn muốn xem vào đây.');
-      return NextResponse.json({ ok: true });
-    }
-
-    // 2. Lệnh /details (xử lý cả khi có bot username do switch_inline gây ra)
-    // Telegram sẽ gửi text kiểu: "/details pham-nhan-tu-tien" 
-    // hoặc "@FlicknetBot /details pham-nhan-tu-tien"
-    if (text.includes('/details')) {
-      const parts = text.split('/details ');
-      if (parts.length > 1) {
-        const slug = parts[1].trim();
+    // Fix lỗi nhận diện: Ưu tiên check xem có chứa cụm "/details " không 
+    // (Bất kể nó nằm ở đầu hay sau @FlicknetBot)
+    if (text.includes('/details ')) {
+      const slug = text.split('/details ')[1]?.trim();
+      if (slug) {
         await handleDetails(chatId, slug);
+        return NextResponse.json({ ok: true });
       }
+    }
+
+    if (text === '/start') {
+      await sendMessage(chatId, '👋 Nhập tên phim để tìm kiếm nhé!');
       return NextResponse.json({ ok: true });
     }
 
-    // 3. Nếu là văn bản thường -> Coi như là từ khóa tìm kiếm
+    // Nếu không phải lệnh đặc biệt và không chứa /details thì mới Search
     if (!text.startsWith('/')) {
       await handleSearch(chatId, text);
       return NextResponse.json({ ok: true });
@@ -146,8 +128,6 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Webhook error:', error?.response?.data ?? error.message);
-    // Chạy vào đây tương đương với nhánh Error Handler "Ignore" trong Make
   }
-
   return NextResponse.json({ ok: true });
 }
