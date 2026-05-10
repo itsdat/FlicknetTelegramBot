@@ -117,15 +117,18 @@ export async function POST(request) {
     }
 
     const message = body.message;
-    if (!message?.text) return NextResponse.json({ ok: true });
+if (!message?.text) return NextResponse.json({ ok: true });
 
-    const chatId = message.chat.id;
-    const text = message.text.trim();
+const chatId = message.chat.id;
+const text = message.text.trim();
 
-    console.log("Tin nhắn nhận được:", text);
+// Log toàn bộ body để debug
+console.log("FULL BODY:", JSON.stringify(body, null, 2));
+console.log("TEXT:", JSON.stringify(text));
 
-    const detailsRegex = /\/details\s+([a-zA-Z0-9-]+)/;
-    const match = text.match(detailsRegex);
+const detailsRegex = /\/details\s+([a-zA-Z0-9-]+)/;
+const match = text.match(detailsRegex);
+console.log("MATCH:", match);
 
     if (match?.[1]) {
       await handleDetails(chatId, match[1]);
