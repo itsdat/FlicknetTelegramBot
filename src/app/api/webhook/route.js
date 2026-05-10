@@ -70,27 +70,41 @@ async function handleSearch(chatId, keyword) {
 }
 
 async function handleDetails(chatId, slug) {
-  try {
-    const { data } = await axios.get(`${PHIM_API}/phim/${slug}`);
-    if (!data || !data.movie) return await sendMessage(chatId, '❌ Không tìm thấy thông tin phim.');
+  const { data } = await axios.get(`${PHIM_API}/phim/${slug}`);
+  const { movie, episodes } = data;
 
-    const { movie, episodes } = data;
-    const serverData = episodes?.[0]?.server_data ?? [];
-    
-    const nodes = serverData.map((ep) => ({
-      tag: 'p',
-      children: [{ tag: 'a', attrs: { href: ep.link_embed }, children: [`Tập ${ep.name}`] }],
-    }));
-
-    const telegraphUrl = await createTelegraphPage(movie.name, nodes);
-    const caption = `🎬 <b>${movie.name}</b> (${movie.year})\n✅ ${movie.episode_current}\n\n📋 Danh sách tập đã sẵn sàng!`;
-    const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
-
-    const photo = `${IMG_URL}/${movie.poster_url || movie.thumb_url}`;
-    return await sendPhoto(chatId, photo, caption, buttons);
-  } catch (err) {
-    return await sendMessage(chatId, `❌ Lỗi lấy phim: ${slug}`);
+  if (!movie) {
+    return sendMessage(chatId, '❌ Không tìm thấy thông tin phim này.');
   }
+
+  const serverData = episodes?.[0]?.server_data ?? [];
+  
+  // Tạo Nodes cho Telegraph (chuẩn Node Object)
+  const nodes = serverData.map((ep) => ({
+    tag: 'p',
+    children: [
+      {
+        tag: 'a',
+        attrs: { href: ep.link_embed },
+        children: [`Tập ${ep.name}`],
+      },
+    ],
+  }));
+
+  const telegraphUrl = await createTelegraphPage(movie.name, nodes);
+
+  const caption =
+    `🎬 <b>${movie.name}</b> (${movie.year})\n` +
+    `✅ Trạng thái: ${movie.episode_current}\n` +
+    `⭐ Đánh giá: ${movie.tmdb?.vote_average ?? 'N/A'}/10\n\n` +
+    `<i>Nội dung: ${movie.content ? movie.content.replace(/<[^>]*>?/gm, '').substring(0, 150) + '...' : 'Đang cập nhật...'}</i>`;
+
+  const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
+
+  if (movie.poster_url) {
+    return sendPhoto(chatId, `${IMG_URL}/${movie.poster_url}`, caption, buttons);
+  }
+  return sendMessage(chatId, caption, buttons);
 }
 
 // ─── Main Webhook Route ──────────────────────────────────────────
