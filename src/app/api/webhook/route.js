@@ -57,11 +57,11 @@ async function handleSearch(chatId, keyword) {
   // Vòng lặp gửi từng phim
   for (const item of items) {
     const buttons = [[
-      {
-        text: `🎬 Xem chi tiết: ${item.name}`,
-        switch_inline_query_current_chat: `/details ${item.slug}`,
-      },
-    ]];
+  {
+    text: `🎬 Xem chi tiết: ${item.name}`,
+    callback_data: `details:${item.slug}`,  // ← đổi
+  },
+]];
     
     const caption = `<b>${item.name}</b> (${item.year})`;
     const photo = `${IMG_URL}/${item.thumb_url}`;
@@ -128,6 +128,22 @@ export async function POST(request) {
       });
       return NextResponse.json({ ok: true });
     }
+
+    if (body.callback_query) {
+  const { id, message, data } = body.callback_query;
+
+  // Tắt loading spinner trên nút
+  await axios.post(`${TELEGRAM_API}/answerCallbackQuery`, {
+    callback_query_id: id,
+  });
+
+  if (data.startsWith('details:')) {
+    const slug = data.replace('details:', '');
+    await handleDetails(message.chat.id, slug);
+  }
+
+  return NextResponse.json({ ok: true });
+}
 
     // ← Thêm xử lý chosen_inline_result
     if (body.chosen_inline_result) {
