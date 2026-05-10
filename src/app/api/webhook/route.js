@@ -63,7 +63,7 @@ async function handleSearch(chatId, keyword) {
       },
     ]];
     
-    const caption = `<b>${item.name}</b> (${item.year})\nSlug: <code>${item.slug}</code>`;
+    const caption = `<b>${item.name}</b> (${item.year})`;
     const photo = `${IMG_URL}/${item.thumb_url}`;
 
     try {
@@ -77,7 +77,7 @@ async function handleSearch(chatId, keyword) {
 
 async function handleDetails(chatId, slug) {
   const { data } = await axios.get(`${PHIM_API}/phim/${slug}`);
-  const { movie, episodes } = data;
+  const { movie, episodes, item } = data;
 
   if (!movie) return sendMessage(chatId, '❌ Không tìm thấy thông tin phim.');
 
@@ -90,15 +90,14 @@ async function handleDetails(chatId, slug) {
   const telegraphUrl = await createTelegraphPage(movie.name, nodes);
   const caption =
     `🎬 <b>${movie.name}</b> (${movie.year})\n` +
-    `✅ ${movie.episode_current}\n\n` +
-    `📋 Danh sách tập đã sẵn sàng!`;
+    `✅ ${movie.episode_current}\n\n`;
   const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
 
   // ← Thử poster trước, fallback thumb, fallback sendMessage
-  const photoUrl = movie.poster_url
-    ? `${IMG_URL}/${movie.poster_url}`
-    : movie.thumb_url
-      ? `${IMG_URL}/${movie.thumb_url}`
+  const photoUrl = item.poster_url
+    ? `${IMG_URL}/${item.poster_url}`
+    : item.thumb_url
+      ? `${IMG_URL}/${item.thumb_url}`
       : null;
 
   if (photoUrl) {
