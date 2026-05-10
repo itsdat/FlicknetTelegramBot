@@ -77,7 +77,7 @@ async function handleSearch(chatId, keyword) {
 
 async function handleDetails(chatId, slug) {
   const { data } = await axios.get(`${PHIM_API}/phim/${slug}`);
-  const { movie, episodes, item } = data;
+  const { movie, episodes } = data;
 
   if (!movie) return sendMessage(chatId, '❌ Không tìm thấy thông tin phim.');
 
@@ -94,10 +94,10 @@ async function handleDetails(chatId, slug) {
   const buttons = [[{ text: '📋 Xem danh sách tập phim', url: telegraphUrl }]];
 
   // ← Thử poster trước, fallback thumb, fallback sendMessage
-  const photoUrl = item.poster_url
-    ? `${IMG_URL}/${item.poster_url}`
-    : item.thumb_url
-      ? `${IMG_URL}/${item.thumb_url}`
+  const photoUrl = movie.poster_url
+    ? `${movie.poster_url}`
+    : movie.thumb_url
+      ? `${movie.thumb_url}`
       : null;
 
   if (photoUrl) {
